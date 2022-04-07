@@ -1,0 +1,365 @@
+```{r}
+#Setting directory
+setwd("C:/Users/Ique Nepomuceno/Documents/Performance Marketing/SARIMA Model")
+```
+```{r}
+#Loading Packages
+library("readxl")
+library("tseries")
+library("forecast")
+library("openxlsx")
+library("ggplot2")
+```
+
+```{r}
+# Loading Data Frames
+# All the needed data, including the R notebook should be in folder for easier coding/operation. 
+# Monthly_rev contains daily raw data of brands. 
+
+#Reading file
+monthly_rev <- read_excel("C:\\Users\\Ique Nepomuceno\\Documents\\Performance Marketing\\SARIMA Model\\BH DEFR Data_v2.xlsx", 
+               sheet=1, 
+               col_names=TRUE, 
+               col_types=NULL,
+               skip=0)
+
+attach(monthly_rev)
+summary(Revenue)
+```
+```{r}
+# Preparing for the Model
+
+#Splitting Data into Test & Train Data
+#Splitting 2015-2018 vs 2019
+#sd = Start Date or First Fiscal Year data available
+
+train<-head(monthly_rev, nrow(monthly_rev)-12)
+test<-tail(monthly_rev, 12)
+sd=2018
+```
+
+```{r}
+
+#converting data into time series format
+#converting split data into time series format
+#The '$' symbol lets you select particular columns in a table or dataframe
+
+#Revenue
+tsData= ts(monthly_rev$Revenue, start = c(sd,2), frequency = 12)
+tsTrain=ts(train$Revenue, start=c(sd,2), frequency =12)
+tsTest=ts(test$Revenue, start=c(2019,2), frequency =12)
+autoplot(tsTrain) + autolayer(tsTest)
+autoplot(tsData)
+
+#Conversions
+tsDataCon = ts(monthly_rev$Conversions, start = c(sd,2), frequency = 12)
+tsTrainCon = ts(train$Conversions, start=c(sd,2), frequency =12)
+tsTestCon = ts(test$Conversions, start=c(2019,2), frequency =12)
+
+#Cost
+tsDataCost = ts(monthly_rev$Cost, start = c(sd,2), frequency = 12)
+tsTrainCost = ts(train$Cost, start=c(sd,2), frequency =12)
+tsTestCost = ts(test$Cost, start=c(2019,2), frequency =12)
+
+#Clicks
+tsDataClicks = ts(monthly_rev$Clicks, start = c(sd,2), frequency = 12)
+tsTrainClicks = ts(train$Clicks, start=c(sd,2), frequency =12)
+tsTestClicks = ts(test$Clicks, start=c(2019,2), frequency =12)
+
+#Impressions
+tsDataImp = ts(monthly_rev$Impressions, start = c(sd,2), frequency = 12)
+tsTrainImp = ts(train$Impressions, start=c(sd,2), frequency =12)
+tsTestImp = ts(test$Impressions, start=c(2019,2), frequency =12)
+
+```
+## Finding the Appropriate pdqPDQm Values 
+
+**Trend Elements**       
+p: Trend autoregression order    
+d: Trend difference order   
+q: Trend moving average order    
+
+**Seasonal Elements**      
+P: Seasonal autoregressive order     
+D: Seasonal difference order        
+Q: Seasonal moving average order      
+m: The number of time steps for a single seasonal period     
+
+Source: https://machinelearningmastery.com/sarima-for-time-series-forecasting-in-python/ 
+
+```{r}
+#Finding the appropriate pdqPDQ values of each dataset
+
+arima<-auto.arima(tsData,seasonal=TRUE)
+arimaCon<-auto.arima(tsDataCon,seasonal=TRUE)
+arimaCost<-auto.arima(tsDataCost,seasonal=TRUE)
+arimaClicks<-auto.arima(tsDataClicks,seasonal=TRUE)
+arimaImp<-auto.arima(tsDataImp,seasonal=TRUE)
+
+#Finding the appropriate pdqPDQ values for each training dataset
+arimaTrain<-auto.arima(tsTrain,seasonal=TRUE)
+arimaTrainCon<-auto.arima(tsTrainCon, seasonal=TRUE)
+arimaTrainCost<-auto.arima(tsTrainCost, seasonal=TRUE)
+arimaTrainClicks<-auto.arima(tsTrainClicks, seasonal=TRUE)
+arimaTrainImp<-auto.arima(tsTrainImp, seasonal=TRUE)
+```
+
+## Using setNames for easier identification
+Remember this Pattern: p q P Q m d D
+```{r}
+#using setNames for easier identification:
+#remember this pattern: p q P Q m d D
+# arimaTrain$arma
+
+input<-setNames(arima$arma, c("p","q","P","Q","m","d","D"))
+inputCon<-setNames(arimaCon$arma, c("p","q","P","Q","m","d","D"))
+inputCost<-setNames(arimaCost$arma, c("p","q","P","Q","m","d","D"))
+inputClicks<-setNames(arimaClicks$arma, c("p","q","P","Q","m","d","D"))
+inputImp<-setNames(arimaImp$arma, c("p","q","P","Q","m","d","D"))
+
+inputTrain<-setNames(arimaTrain$arma, c("p","q","P","Q","m","d","D"))
+inputTrainCon<-setNames(arimaTrainCon$arma, c("p","q","P","Q","m","d","D"))
+inputTrainCost<-setNames(arimaTrainCost$arma, c("p","q","P","Q","m","d","D"))
+inputTrainClicks<-setNames(arimaTrainClicks$arma, c("p","q","P","Q","m","d","D"))
+inputTrainImp<-setNames(arimaTrainImp$arma, c("p","q","P","Q","m","d","D"))
+
+```
+
+# Fitting the Model
+```{r}
+#fitting the model
+fitARIMA <- arima(tsData, 
+                  order=c(input["p"],input["d"],input["q"]),
+                  seasonal = list(order = c(input["P"],input["D"],input["Q"]),
+                  period = 12),
+                  method="ML")
+
+fitARIMACon <- arima(tsDataCon,
+                     order=c(inputCon["p"],inputCon["d"],inputCon["q"]), 
+                     seasonal = list(order = 
+                     c(inputCon["P"],inputCon["D"],inputCon["Q"]),
+                     period = 12),
+                     method="ML")
+
+fitARIMACost <- arima(tsDataCost,  
+                    order=c(inputCost["p"],inputCost["d"],inputCost["q"]),
+                    seasonal = list(order = 
+                    c(inputCost["P"],inputCost["D"],inputCost["Q"]), 
+                    period = 12), 
+                    method="ML")
+
+fitARIMAClicks <- arima(tsDataClicks, 
+                  order=c(inputClicks["p"],inputClicks["d"],inputClicks["q"]), 
+                  seasonal = list(order = 
+                  c(inputClicks["P"],inputClicks["D"],inputClicks["Q"]), 
+                  period = 12), 
+                  method="ML")
+
+fitARIMAImp <- arima(tsDataImp, 
+                     order=c(inputImp["p"],inputImp["d"],inputImp["q"]), 
+                     seasonal = list(order = 
+                     c(inputImp["P"],inputImp["D"],inputImp["Q"]), 
+                     period = 12), 
+                     method="ML")
+
+#fitting the training models
+#Revenue
+fitTrain <- arima(tsTrain,
+                  order=c(inputTrain["p"],inputTrain["d"],inputTrain["q"]),
+                  seasonal = list(order =
+                  c(inputTrain["P"],inputTrain["D"],inputTrain["Q"]),
+                  period = 12),
+                  method="ML")
+ 
+# #Conversions
+fitTrainCon <- arima(tsTrainCon,
+             order=c(inputTrainCon["p"],inputTrainCon["d"],inputTrainCon["q"]),
+             seasonal = list(order =
+             c(inputTrainCon["P"],inputTrainCon["D"],inputTrainCon["Q"]),
+             period = 12),
+             method="ML")
+
+# #Cost
+fitTrainCost <- arima(tsTrainCost,
+          order=c(inputTrainCost["p"],inputTrainCost["d"],inputTrainCost["q"]),
+          seasonal = list(order =
+          c(inputTrainCost["P"],inputTrainCost["D"],inputTrainCost["Q"]),
+          period = 12),
+          method="ML")
+
+# #Clicks
+fitTrainClicks <- arima(tsTrainClicks,
+    order=c(inputTrainClicks["p"],inputTrainClicks["d"],inputTrainClicks["q"]),
+    seasonal = list(order =
+    c(inputTrainClicks["P"],inputTrainClicks["D"],inputTrainClicks["Q"]),
+    period = 12),
+    method="ML")
+
+# #Impressions
+fitTrainImp <- Arima(tsTrainImp,
+            order=c(inputTrainImp["p"],inputTrainImp["d"],inputTrainImp["q"]),
+            seasonal = list(order =
+            c(inputTrainImp["P"],inputTrainImp["D"],inputTrainImp["Q"]),
+            period = 12),
+            method="ML")
+
+```
+
+```{r}
+#testing the model
+# acf(residuals(fitARIMA))
+# pacf(residuals(fitARIMA))
+# Box.test(residuals(fitARIMA)
+         
+#testing the training model
+# acf(residuals(fitARIMATrain))
+# pacf(residuals(fitARIMATrain))
+# Box.test(residuals(fitARIMATrain))
+```
+
+# Forecasting Values
+
+## Forecasts
+There are other tests that can be conducted after this. 
+```{r}
+#forecasting the value -- there are tests that needs to be done again after this
+futureVal<-forecast(fitARIMA,h=12,level=c(99.5))
+
+futureValCon <-forecast(fitARIMACon,h=12,level=c(99.5))
+futureValCost <-forecast(fitARIMACost,h=12,level=c(99.5))
+futureValClicks <-forecast(fitARIMAClicks,h=12,level=c(99.5))
+futureValImp <-forecast(fitARIMAImp,h=12,level=c(99.5))
+
+#forecasting value from training model
+futureTrain<-forecast(fitTrain,h=12,level=c(99.5))
+
+futureTrainCon <-forecast(fitTrainCon,h=12,level=c(99.5))
+futureTrainCost <-forecast(fitTrainCost,h=12,level=c(99.5))
+futureTrainClicks <-forecast(fitTrainClicks,h=12,level=c(99.5))
+futureTrainImp <-forecast(fitTrainImp,h=12,level=c(99.5))
+```
+
+```{r}
+#checking the result we have in graph format:
+#To see the values
+plot(futureVal)
+plot(futureValClicks)
+plot(futureValCost)
+plot(futureValCon)
+plot(futureValImp)
+
+#To see training model's forecasts and the actual values
+autoplot(futureTrain) + autolayer(tsTest)
+```
+
+## Testing Accuracy of Forecast Model and Test Model
+```{r}
+#Accuracy Metrics of Forecast Model
+Accu=accuracy(futureVal)
+AccuCon=accuracy(futureValCon)
+AccuCost=accuracy(futureValCost)
+AccuClicks=accuracy(futureValClicks)
+AccuImp=accuracy(futureValImp)
+
+#Accuracy Metrics of Test Models
+AccuTrain = accuracy(futureTrain, tsTest)
+AccuTrainCon=accuracy(futureTrainCon, tsTestCon)
+AccuTrainCost=accuracy(futureTrainCost, tsTestCost)
+AccuTrainClicks=accuracy(futureTrainClicks, tsTestClicks)
+AccuTrainImp=accuracy(futureTrainImp, tsTestImp)
+print(futureVal)
+print(futureValCon)
+print(futureValCost)
+print(futureValClicks)
+print(futureValImp)
+print(futureTrain)
+```
+
+```{r}
+#To write the data into a xlsx file
+#xlsx file must already exist in directory. filename here is test.xlsx
+#write.xlsx command comes from "openxlsx" package
+#You can choose to change the name of the file test to something else
+
+#To write the data into a csv file
+#csv file must already exist in directory. filename here is test.csv
+#write.csv(futureVal, file="test.csv")
+#You can choose to change the name of the file test to something else
+
+#Building a workbook to contain both forecasts and actual values
+testData<-createWorkbook()
+addWorksheet(testData, "Revenue")
+addWorksheet(testData, "Conversions")
+addWorksheet(testData, "Cost")
+addWorksheet(testData, "Clicks")
+addWorksheet(testData, "Impressions")
+
+writeData(testData, "Revenue", futureVal, startCol = 7)
+writeData(testData, "Revenue", Accu[4], startCol = 7, startRow = 16)
+writeData(testData, "Revenue", Accu[5], startCol = 8, startRow = 16)
+writeData(testData, "Revenue", "MPE", startCol = 7, startRow = 15)
+writeData(testData, "Revenue", "MAPE", startCol = 8, startRow = 15)
+
+writeData(testData, "Revenue", tsTest, startCol = 4)
+writeData(testData, "Revenue", futureTrain)
+writeData(testData, "Revenue", "MPE", startCol = 1, startRow = 15)
+writeData(testData, "Revenue", "MAPE", startCol = 2, startRow = 15)
+writeData(testData, "Revenue", AccuTrain[8], startCol = 1, startRow = 16)
+writeData(testData, "Revenue", AccuTrain[10], startCol = 2, startRow = 16)
+
+writeData(testData, "Conversions", futureValCon, startCol = 7)
+writeData(testData, "Conversions", AccuCon[4], startCol = 7, startRow = 16)
+writeData(testData, "Conversions", AccuCon[5], startCol = 8, startRow = 16)
+writeData(testData, "Conversions", "MPE", startCol = 7, startRow = 15)
+writeData(testData, "Conversions", "MAPE", startCol = 8, startRow = 15)
+
+writeData(testData, "Conversions", tsTestCon, startCol = 4)
+writeData(testData, "Conversions", futureTrainCon)
+writeData(testData, "Conversions", "MPE", startCol = 1, startRow = 15)
+writeData(testData, "Conversions", "MAPE", startCol = 2, startRow = 15)
+writeData(testData, "Conversions", AccuTrainCon[8], startCol = 1, startRow = 16)
+writeData(testData, "Conversions", AccuTrainCon[10], startCol = 2, startRow = 16)
+
+writeData(testData, "Cost", futureValCost, startCol = 7)
+writeData(testData, "Cost", AccuCost[4], startCol = 7, startRow = 16)
+writeData(testData, "Cost", AccuCost[5], startCol = 8, startRow = 16)
+writeData(testData, "Cost", "MPE", startCol = 7, startRow = 15)
+writeData(testData, "Cost", "MAPE", startCol = 8, startRow = 15)
+
+writeData(testData, "Cost", tsTestCost, startCol = 4)
+writeData(testData, "Cost", futureTrainCost)
+writeData(testData, "Cost", "MPE", startCol = 1, startRow = 15)
+writeData(testData, "Cost", "MAPE", startCol = 2, startRow = 15)
+writeData(testData, "Cost", AccuTrainCost[8], startCol = 1, startRow = 16)
+writeData(testData, "Cost", AccuTrainCost[10], startCol = 2, startRow = 16)
+
+writeData(testData, "Clicks", futureValClicks, startCol = 7)
+writeData(testData, "Clicks", AccuClicks[4], startCol = 7, startRow = 16)
+writeData(testData, "Clicks", AccuClicks[5], startCol = 8, startRow = 16)
+writeData(testData, "Clicks", "MPE", startCol = 7, startRow = 15)
+writeData(testData, "Clicks", "MAPE", startCol = 8, startRow = 15)
+
+writeData(testData, "Clicks", tsTestClicks, startCol = 4)
+writeData(testData, "Clicks", futureTrainClicks)
+writeData(testData, "Clicks", "MPE", startCol = 1, startRow = 15)
+writeData(testData, "Clicks", "MAPE", startCol = 2, startRow = 15)
+writeData(testData, "Clicks", AccuTrainClicks[8], startCol = 1, startRow = 16)
+writeData(testData, "Clicks", AccuTrainClicks[10], startCol = 2, startRow = 16)
+
+writeData(testData, "Impressions", futureValImp, startCol = 7)
+writeData(testData, "Impressions", AccuImp[4], startCol = 7, startRow = 16)
+writeData(testData, "Impressions", AccuImp[5], startCol = 8, startRow = 16)
+writeData(testData, "Impressions", "MPE", startCol = 7, startRow = 15)
+writeData(testData, "Impressions", "MAPE", startCol = 8, startRow = 15)
+
+writeData(testData, "Impressions", tsTestImp, startCol = 4)
+writeData(testData, "Impressions", futureTrainImp)
+writeData(testData, "Impressions", "MPE", startCol = 1, startRow = 15)
+writeData(testData, "Impressions", "MAPE", startCol = 2, startRow = 15)
+writeData(testData, "Impressions", AccuTrainImp[8], startCol = 1, startRow = 16)
+writeData(testData, "Impressions", AccuTrainImp[10], startCol = 2, startRow = 16)
+
+
+#Filename should be changed before running if you'd like to retain previous files
+saveWorkbook(testData, "BHUK Forecasts_test3.xlsx")
+```
